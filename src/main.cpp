@@ -17,6 +17,7 @@
 #include "transforms/dew_point.h"
 #include "transforms/frequency.h"
 #include "transforms/heat_index.h"
+#include "transforms/lambda_transform.h"
 #include "transforms/linear.h"
 #include "transforms/voltagedivider.h"
 
@@ -112,6 +113,26 @@ ReactESP app([]() {
             new SKOutputNumber("environment.outside.heatIndexTemperature"))
         ->connect_to(new HeatIndexEffect)
         ->connect_to(new SKOutputString("environment.outside.heatIndexEffect"));
+  }
+
+  // Wind direction comes to us via ADC. A count of zero implies due north,
+  // full count is 359 degrees. Signal K expects this in radians, so we scale it
+  // to 0-2*PI. We report it as apparent wind as seen by a boat heading north,
+  // with negative values being wind from port.
+  {
+    uint8_t pin = 34 /* ADC 6 */;
+    uint read_interval_ms = 3 * 1000 /* read every 3s */;
+
+    auto *sensor = new AnalogInput(pin, read_interval_ms, "", 2 * PI);
+    sensor
+        ->connect_to(new LambdaTransform<float, float>(
+            [](float inRadians) {
+              // Convert from true wind direction to apparent wind direction
+              // with the boat heading true north.
+              return inRadians < PI ? inRadians : (inRadians - 2 * PI);
+            },
+            "" /* no config */))
+        ->connect_to(new SKOutputNumber("environment.wind.angleApparent"));
   }
 
   //////////
