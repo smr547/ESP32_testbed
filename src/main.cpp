@@ -135,6 +135,17 @@ ReactESP app([]() {
         ->connect_to(new SKOutputNumber("environment.wind.angleApparent"));
   }
 
+  // Wind speed. 1Hz is 1.026m/s.
+  {
+    uint8_t pin = 19;
+    uint read_interval_ms = 3 * 1000 /* read every 3s */;
+
+    auto *sensor =
+        new DigitalInputCounter(pin, INPUT_PULLUP, RISING, read_interval_ms);
+    sensor->connect_to(new Frequency(1.026, "/Outside/Windspeed/calibrate"))
+        ->connect_to(new SKOutputNumber("environment.wind.speedApparent"));
+  }
+
   //////////
   // connect a RPM meter. A DigitalInputCounter implements an interrupt
   // to count pulses and reports the readings every read_delay ms
