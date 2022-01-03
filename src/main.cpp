@@ -27,9 +27,20 @@ public:
       : CurveInterpolator(nullptr, config_path) {
     clearSamples();
     addSample(CurveInterpolator::Sample(0, 0));
-    addSample(CurveInterpolator::Sample(1023, 517100));
+    addSample(CurveInterpolator::Sample(512, 517100 /* 75 psi in Pa */));
   }
 };
+
+class OilPressureInterpolator : public CurveInterpolator {
+public:
+  OilPressureInterpolator(String config_path = "")
+      : CurveInterpolator(nullptr, config_path) {
+    clearSamples();
+    addSample(CurveInterpolator::Sample(0, 0));
+    addSample(CurveInterpolator::Sample(512, 689476 /* 100 psi in Pa */));
+  }
+};
+
 } // namespace
 
 ReactESP app([]() {
@@ -143,8 +154,7 @@ ReactESP app([]() {
   // Turbo boost sensor
   {
     const char *sk_path = "propulsion.main.boostPressure";
-    const char *config_path_calibrate =
-        "/engine/boostPressure/calibrate";
+    const char *config_path_calibrate = "/engine/boostPressure/calibrate";
     const char *config_path_skpath = "/sensors/boostPressure/sk";
 
     const float Vin = 3.3;
@@ -166,8 +176,7 @@ ReactESP app([]() {
   // Turbo boost sensor
   {
     const char *sk_path = "propulsion.main.boostPressure";
-    const char *config_path_calibrate =
-        "/engine/boostPressure/calibrate";
+    const char *config_path_calibrate = "/engine/boostPressure/calibrate";
     const char *config_path_skpath = "/sensors/boostPressure/sk";
 
     const float Vin = 3.3;
@@ -182,6 +191,27 @@ ReactESP app([]() {
             new VoltageDividerR2(R1, Vin, "/engine/boostPressure/sender"))
         ->connect_to(
             new BoostPressureInterpolator("/engine/boostPressure/curve"))
+        ->connect_to(new Linear(1.0, 0.0, config_path_calibrate))
+        ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
+  }
+
+  // Oil pressure sensor
+  {
+    const char *sk_path = "propulsion.main.oilPressure";
+    const char *config_path_calibrate = "/engine/oilPressure/calibrate";
+    const char *config_path_skpath = "/sensors/oilPressure/sk";
+
+    const float Vin = 3.3;
+    const float R1 = 5000;
+
+    uint8_t pin = 39 /* ADC 3 */;
+
+    auto *analog_input = new AnalogInput(pin);
+
+    analog_input->connect_to(new AnalogVoltage())
+        ->connect_to(
+            new VoltageDividerR2(R1, Vin, "/engine/oilPressure/sender"))
+        ->connect_to(new OilPressureInterpolator("/engine/oilPressure/curve"))
         ->connect_to(new Linear(1.0, 0.0, config_path_calibrate))
         ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
   }
