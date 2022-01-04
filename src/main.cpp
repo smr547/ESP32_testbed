@@ -12,37 +12,12 @@
 #include "sensors/digital_input.h"
 #include "signalk/signalk_output.h"
 #include "transforms/air_density.h"
-#include "transforms/analogvoltage.h"
-#include "transforms/curveinterpolator.h"
 #include "transforms/dew_point.h"
 #include "transforms/frequency.h"
 #include "transforms/heat_index.h"
 #include "transforms/lambda_transform.h"
 #include "transforms/linear.h"
 #include "transforms/voltagedivider.h"
-
-namespace {
-class BoostPressureInterpolator : public CurveInterpolator {
-public:
-  BoostPressureInterpolator(String config_path = "")
-      : CurveInterpolator(nullptr, config_path) {
-    clearSamples();
-    addSample(CurveInterpolator::Sample(0, 0));
-    addSample(CurveInterpolator::Sample(512, 517100 /* 75 psi in Pa */));
-  }
-};
-
-class OilPressureInterpolator : public CurveInterpolator {
-public:
-  OilPressureInterpolator(String config_path = "")
-      : CurveInterpolator(nullptr, config_path) {
-    clearSamples();
-    addSample(CurveInterpolator::Sample(0, 0));
-    addSample(CurveInterpolator::Sample(512, 689476 /* 100 psi in Pa */));
-  }
-};
-
-} // namespace
 
 ReactESP app([]() {
 #ifndef SERIAL_DEBUG_DISABLED
@@ -189,41 +164,16 @@ ReactESP app([]() {
     const char *config_path_calibrate = "/engine/boostPressure/calibrate";
     const char *config_path_skpath = "/sensors/boostPressure/sk";
 
-    const float Vin = 3.3;
-    const float R1 = 5000;
-
+    // The sensor produces values from 0 to 1/2 Vcc, i.e. 2048 counts in our 12
+    // bit ADC. AnalogInput scales the value to 0->1024, so a max-value reading
+    // will be 512 counts. The maximum reading for the sensor is 50 psi, or
+    // about 344737 Pa.
+    const float multiplier = 344737 / 512.0f;
     uint8_t pin = 36 /* ADC 0 */;
 
     auto *analog_input = new AnalogInput(pin);
 
-    analog_input->connect_to(new AnalogVoltage())
-        ->connect_to(
-            new VoltageDividerR2(R1, Vin, "/engine/boostPressure/sender"))
-        ->connect_to(
-            new BoostPressureInterpolator("/engine/boostPressure/curve"))
-        ->connect_to(new Linear(1.0, 0.0, config_path_calibrate))
-        ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
-  }
-
-  // Turbo boost sensor
-  {
-    const char *sk_path = "propulsion.main.boostPressure";
-    const char *config_path_calibrate = "/engine/boostPressure/calibrate";
-    const char *config_path_skpath = "/sensors/boostPressure/sk";
-
-    const float Vin = 3.3;
-    const float R1 = 5000;
-
-    uint8_t pin = 36 /* ADC 0 */;
-
-    auto *analog_input = new AnalogInput(pin);
-
-    analog_input->connect_to(new AnalogVoltage())
-        ->connect_to(
-            new VoltageDividerR2(R1, Vin, "/engine/boostPressure/sender"))
-        ->connect_to(
-            new BoostPressureInterpolator("/engine/boostPressure/curve"))
-        ->connect_to(new Linear(1.0, 0.0, config_path_calibrate))
+    analog_input->connect_to(new Linear(multiplier, 0.0, config_path_calibrate))
         ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
   }
 
@@ -233,18 +183,16 @@ ReactESP app([]() {
     const char *config_path_calibrate = "/engine/oilPressure/calibrate";
     const char *config_path_skpath = "/sensors/oilPressure/sk";
 
-    const float Vin = 3.3;
-    const float R1 = 5000;
-
+    // The sensor produces values from 0 to 1/2 Vcc, i.e. 2048 counts in our 12
+    // bit ADC. AnalogInput scales the value to 0->1024, so a max-value reading
+    // will be 512 counts. The maximum reading for the sensor is 100 psi, or
+    // about 689475 Pa.
+    const float multiplier = 689475 / 512.0f;
     uint8_t pin = 39 /* ADC 3 */;
 
     auto *analog_input = new AnalogInput(pin);
 
-    analog_input->connect_to(new AnalogVoltage())
-        ->connect_to(
-            new VoltageDividerR2(R1, Vin, "/engine/oilPressure/sender"))
-        ->connect_to(new OilPressureInterpolator("/engine/oilPressure/curve"))
-        ->connect_to(new Linear(1.0, 0.0, config_path_calibrate))
+    analog_input->connect_to(new Linear(multiplier, 0.0, config_path_calibrate))
         ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
   }
 
