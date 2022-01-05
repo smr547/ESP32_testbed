@@ -17,6 +17,7 @@
 #include "transforms/heat_index.h"
 #include "transforms/lambda_transform.h"
 #include "transforms/linear.h"
+#include "transforms/typecast.h"
 #include "transforms/voltagedivider.h"
 
 ReactESP app([]() {
@@ -119,6 +120,27 @@ ReactESP app([]() {
         new DigitalInputCounter(pin, INPUT_PULLUP, RISING, read_interval_ms);
     sensor->connect_to(new Frequency(1.026, "/Outside/Windspeed/calibrate"))
         ->connect_to(new SKOutputNumber("environment.wind.speedApparent"));
+  }
+
+  // Rain sensor. Report count every 5 minutes.
+  {
+    const uint8_t pin = 18;
+    const uint read_interval_ms = 5 * 60 * 1000 /* 5 minutes */;
+    const uint ignore_interval_ms = 100; // switch is kinda noisy
+    const float multiplier = 0.18;       // mm per count
+
+    // There's no path in the Signal K spec for rain, so let's make one.
+    SKMetadata *rain_meta = new SKMetadata();
+    rain_meta->units_ = "mm";
+    rain_meta->description_ = rain_meta->display_name_ =
+        rain_meta->short_name_ = "Rainfall";
+
+    auto *sensor = new DigitalInputCounter(
+        pin, INPUT_PULLUP, FALLING, read_interval_ms, ignore_interval_ms);
+    sensor->connect_to(new Typecast<int, float>())
+        ->connect_to(new Linear(multiplier, 0.0, "/Outside/Rain/calibrate"))
+        ->connect_to(
+            new SKOutputNumber("environment.rain.volume5min", rain_meta));
   }
 
   //////////
