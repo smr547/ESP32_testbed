@@ -20,6 +20,12 @@
 #include "transforms/typecast.h"
 #include "transforms/voltagedivider.h"
 
+#include "signalk/signalk_position.h"
+#include "signalk/signalk_time.h"
+#include "transforms/angle_correction.h"
+
+#include "wiring_helpers.h"
+
 ReactESP app([]() {
 #ifndef SERIAL_DEBUG_DISABLED
   SetupSerialDebug(115200);
@@ -126,8 +132,8 @@ ReactESP app([]() {
   {
     const uint8_t pin = 18;
     const uint read_interval_ms = 5 * 60 * 1000 /* 5 minutes */;
-    const uint ignore_interval_ms = 100; // switch is kinda noisy
-    const float multiplier = 0.18;       // mm per count
+    const unsigned int ignore_interval_ms = 200; // switch is kinda noisy
+    const float multiplier = 0.18;               // mm per count
 
     // There's no path in the Signal K spec for rain, so let's make one.
     SKMetadata *rain_meta = new SKMetadata();
@@ -135,7 +141,7 @@ ReactESP app([]() {
     rain_meta->description_ = rain_meta->display_name_ =
         rain_meta->short_name_ = "Rainfall";
 
-    auto *sensor = new DigitalInputCounter(
+    auto *sensor = new DigitalInputDebounceCounter(
         pin, INPUT_PULLUP, FALLING, read_interval_ms, ignore_interval_ms);
     sensor->connect_to(new Typecast<int, float>())
         ->connect_to(new Linear(multiplier, 0.0, "/Outside/Rain/calibrate"))
@@ -216,6 +222,55 @@ ReactESP app([]() {
 
     analog_input->connect_to(new Linear(multiplier, 0.0, config_path_calibrate))
         ->connect_to(new SKOutputNumber(sk_path, config_path_skpath));
+  }
+
+  // GPS sentences
+  {
+    uint8_t gps_rx_pin = 5;
+    uint16_t gps_baud = 9600;
+
+    HardwareSerial *serial = &Serial1;
+
+    serial->begin(gps_baud, SERIAL_8N1, gps_rx_pin, -1, false, 256);
+
+    // HardwareSerial* serial = &Serial1;
+    // serial->begin(gps_baud, SERIAL_8N1, gps_rx_pin, -1);
+
+    auto *gps = new GPSInput(serial);
+    gps->nmea_data_.position.connect_to(
+        new SKOutputPosition("navigation.position", ""));
+    gps->nmea_data_.gnss_quality.connect_to(
+        new SKOutputString("navigation.methodQuality", ""));
+    gps->nmea_data_.num_satellites.connect_to(
+        new SKOutputInt("navigation.satellites", ""));
+    gps->nmea_data_.horizontal_dilution.connect_to(
+        new SKOutputNumber("navigation.horizontalDilution", ""));
+    gps->nmea_data_.geoidal_separation.connect_to(
+        new SKOutputNumber("navigation.geoidalSeparation", ""));
+    gps->nmea_data_.dgps_age.connect_to(
+        new SKOutputNumber("navigation.differentialAge", ""));
+    gps->nmea_data_.dgps_id.connect_to(
+        new SKOutputNumber("navigation.differentialReference", ""));
+    gps->nmea_data_.datetime.connect_to(
+        new SKOutputTime("navigation.datetime", ""));
+    gps->nmea_data_.speed.connect_to(
+        new SKOutputNumber("navigation.speedOverGround", ""));
+    gps->nmea_data_.true_course.connect_to(
+        new SKOutputNumber("navigation.courseOverGroundTrue", ""));
+    gps->nmea_data_.variation.connect_to(
+        new SKOutputNumber("navigation.magneticVariation", ""));
+    gps->nmea_data_.rtk_age.connect_to(
+        new SKOutputNumber("navigation.rtkAge", ""));
+    gps->nmea_data_.rtk_ratio.connect_to(
+        new SKOutputNumber("navigation.rtkRatio", ""));
+    gps->nmea_data_.baseline_length.connect_to(
+        new SKOutputNumber("navigation.rtkBaselineLength", ""));
+    gps->nmea_data_.baseline_course
+        .connect_to(new SKOutputNumber("navigation.rtkBaselineCourse"))
+        ->connect_to(new AngleCorrection(0, 0, "/sensors/heading/correction"))
+        ->connect_to(new SKOutputNumber("navigation.headingTrue", ""));
+
+    //  GPSInput* gps = setup_gps(serial);
   }
 
   sensesp_app->enable();
