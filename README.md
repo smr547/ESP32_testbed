@@ -11,7 +11,11 @@ The program relies on the [Platform IO IDE](https://platformio.org/) for develop
 
 ### Raspberry Pi
 
-To install, follow the [PlatformIO installation instructions](https://docs.platformio.org/en/latest/core/installation/index.html)
+To install, follow the [PlatformIO installation instructions](https://docs.platformio.org/en/latest/core/installation/index.html). This involved
+
+* [Installing VSCode](https://code.visualstudio.com/docs/setup/linux) for linux (ARM)
+* Running VSCode and [installing the PlatformIO plugin](http://docs.platformio.org/en/latest/integration/ide/vscode.html)
+
 
 ## Dependencies
 
