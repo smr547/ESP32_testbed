@@ -1,6 +1,6 @@
 # ESP32_testbed
 
-A program running on a ESP32 system on a chip to allow new sensors to be testing in conjunction with a SingnalK server.
+A program running on a ESP32 system on a chip to allow new sensors to be testing in conjunction with a [SignalK server](https://github.com/SignalK/signalk-server).
 
 ## IDE
 
